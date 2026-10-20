@@ -5610,10 +5610,10 @@ html[data-ui-theme="slate"] {
       <div class="lottery-setting-cards">
         <div class="setting-action-card lottery-setting-card">
           <div>
-            <div class="library-setting-label">每場次起始抽數</div>
-            <div class="library-setting-value"><span id="lotteryMaxText">60</span> 抽</div>
+            <div class="library-setting-label">每場次抽數</div>
+            <div class="library-setting-value"><span id="lotteryMaxText">不限量</span></div>
           </div>
-          <button class="small-btn" onclick="openLotterySetting()">修改抽數</button>
+          <button class="small-btn" onclick="openLotterySetting()">設定抽數</button>
         </div>
 
         <div class="setting-action-card lottery-setting-card">
@@ -6834,10 +6834,15 @@ html[data-ui-theme="slate"] {
   <div id="lotterySettingModal" class="modal hidden">
     <div class="modal-box">
       <h2>一番賞設定</h2>
-      <div class="modal-note">此數字會套用到每一個場次，已售抽數不會被清除。</div>
-
-      <label for="lotteryMaxInput">每場次起始抽數</label>
-      <input id="lotteryMaxInput" type="number" min="0" inputmode="numeric">
+      <label class="checkbox-row" for="lotteryUnlimitedInput" style="display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0">
+        <span>不限抽數（無販售上限）</span>
+        <input id="lotteryUnlimitedInput" type="checkbox" checked onchange="updateLotteryLimitUi()">
+      </label>
+      <div id="lotteryLimitArea">
+        <label for="lotteryMaxInput">每場次抽數上限</label>
+        <input id="lotteryMaxInput" type="number" min="0" step="1" inputmode="numeric">
+      </div>
+      <p class="subtle" id="lotteryUnlimitedHelp" style="margin:10px 0 0;line-height:1.65">不限量時仍會記錄已售抽數，但「最後賞」不會自動觸發。若要自動發送最後賞，請關閉不限量並設定總抽數。</p>
 
       <div class="modal-actions">
         <button class="cancel" onclick="closeModal('lotterySettingModal')">取消</button>
@@ -7165,6 +7170,7 @@ html[data-ui-theme="slate"] {
 
       return {
         lotteryMax: 60,
+        lotteryUnlimited: true,
         defaultStockWarning: 5,
         stockWarningThresholds: {},
         preorderReserveConfirmed:
@@ -11182,8 +11188,9 @@ html[data-ui-theme="slate"] {
         } else if (p.type === "lottery") {
           const r = lotteryRemaining(true);
           sold = r <= 0;
-          stockLine = sold
-            ? `<span class="sold-label">SOLD OUT</span>`
+          stockLine = isLotteryUnlimited()
+            ? '<span class="stock-text">不限量</span>'
+            : sold ? `<span class="sold-label">SOLD OUT</span>`
             : `<span class="stock-text ${r<=5 ? "low":""}">剩餘 ${r}</span>`;
         } else if (p.type === "photoset") {
           stockLine = `<span class="stock-text">點入查看各款庫存</span>`;
@@ -12226,7 +12233,12 @@ html[data-ui-theme="slate"] {
       return cart.filter(i => i.id === "lottery").reduce((s,i)=>s+Number(i.quantity||0),0);
     }
 
+    function isLotteryUnlimited() {
+      return getSettings().lotteryUnlimited !== false;
+    }
+
     function lotteryRemaining(includeCart=false) {
+      if (isLotteryUnlimited()) return Infinity;
       return Math.max(0, Number(getSettings().lotteryMax||0) - lotterySold() - (includeCart ? lotteryInCart() : 0));
     }
 
@@ -12267,9 +12279,9 @@ html[data-ui-theme="slate"] {
                   r <= 5 &&
                   r > 0,
                 text:
-                  r > 0
-                    ? `剩餘 ${r}`
-                    : "SOLD OUT"
+                  isLotteryUnlimited()
+                    ? "不限量"
+                    : (r > 0 ? `剩餘 ${r}` : "SOLD OUT")
               }
         );
       }
@@ -13683,6 +13695,7 @@ html[data-ui-theme="slate"] {
       }
 
       if (
+        !isLotteryUnlimited() &&
         lotteryInCart() >
         getSettings().lotteryMax -
         lotterySold()
@@ -16035,7 +16048,7 @@ html[data-ui-theme="slate"] {
       renderGiftLibrary();
       renderCostManagement();
 
-      document.getElementById("lotteryMaxText").textContent = getSettings().lotteryMax;
+      document.getElementById("lotteryMaxText").textContent = isLotteryUnlimited() ? "不限量" : `${getSettings().lotteryMax} 抽`;
 
       const warningInput =
         document.getElementById(
@@ -16154,18 +16167,29 @@ html[data-ui-theme="slate"] {
 
     function openLotterySetting() {
       document.getElementById("lotteryMaxInput").value = getSettings().lotteryMax;
+      document.getElementById("lotteryUnlimitedInput").checked = isLotteryUnlimited();
+      updateLotteryLimitUi();
       document.getElementById("lotterySettingModal").classList.remove("hidden");
     }
 
+    function updateLotteryLimitUi() {
+      const unlimited = Boolean(document.getElementById("lotteryUnlimitedInput")?.checked);
+      const input = document.getElementById("lotteryMaxInput");
+      if (input) { input.disabled = unlimited; input.required = !unlimited; }
+      const area = document.getElementById("lotteryLimitArea");
+      if (area) area.style.opacity = unlimited ? "0.45" : "1";
+    }
+
     function saveLotterySetting() {
+      const unlimited = Boolean(document.getElementById("lotteryUnlimitedInput")?.checked);
       const value = Number(document.getElementById("lotteryMaxInput").value);
-      if (!Number.isInteger(value) || value<0) return alert("請輸入正確數量");
-
-      let maxSold = 0;
-      for (const s of getSessions()) maxSold = Math.max(maxSold,lotterySold(s.id));
-      if (value<maxSold) return alert(`起始抽數不能小於已售出的 ${maxSold} 抽`);
-
-      saveSettings({...getSettings(),lotteryMax:value});
+      if (!unlimited && (!Number.isInteger(value) || value<0)) return alert("請輸入正確數量");
+      if (!unlimited) {
+        let maxSold = 0;
+        for (const s of getSessions()) maxSold = Math.max(maxSold,lotterySold(s.id));
+        if (value<maxSold) return alert(`總抽數不能小於已售出的 ${maxSold} 抽`);
+      }
+      saveSettings({...getSettings(),lotteryUnlimited:unlimited,lotteryMax:unlimited?getSettings().lotteryMax:value});
       closeModal("lotterySettingModal");
       renderLibrary();
       renderMainProducts();
@@ -18740,7 +18764,7 @@ html[data-ui-theme="slate"] {
         allItems += items;
 
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${esc(prettyDate(s.date))}</td><td>${esc(s.name)}${s.day ? `<span class="session-day-badge">${esc(s.day)}</span>` : ""}</td><td>$${money(revenue)}</td><td>${orders.length}</td><td>${items}</td><td>${lotterySold(s.id)} / ${getSettings().lotteryMax}</td>`;
+        tr.innerHTML = `<td>${esc(prettyDate(s.date))}</td><td>${esc(s.name)}${s.day ? `<span class="session-day-badge">${esc(s.day)}</span>` : ""}</td><td>$${money(revenue)}</td><td>${orders.length}</td><td>${items}</td><td>${isLotteryUnlimited() ? `已售 ${lotterySold(s.id)} 抽` : `${lotterySold(s.id)} / ${getSettings().lotteryMax}`}</td>`;
         body.appendChild(tr);
       }
 
@@ -22696,7 +22720,7 @@ function v62AppendProductCard(grid,item){
     if(p.bundleComponents?.length){const max=getBundleProductAvailable(p);if(Number.isFinite(max)){sold=max<=0;stockLine=sold?'<span class="sold-label">SOLD OUT</span>':`<span class="stock-text ${max<=3?'low':''}">套組可售 ${max}</span>`;}}
     if(p.id==='ultimate'&&getUltimateBundleSettings().enabled&&getUltimateBundleSettings().components?.length){const max=getMaxBundleQuantityAllowed([]);if(Number.isFinite(max)){sold=max<=0;stockLine=sold?'<span class="sold-label">SOLD OUT</span>':`<span class="stock-text ${max<=3?'low':''}">連動可售 ${max} 套</span>`;}}
   }else if(p.type==='lottery'){
-    const r=lotteryRemaining(true);sold=r<=0;stockLine=sold?'<span class="sold-label">SOLD OUT</span>':`<span class="stock-text ${r<=5?'low':''}">剩餘 ${r}</span>`;
+    const r=lotteryRemaining(true);sold=r<=0;stockLine=isLotteryUnlimited()?'<span class="stock-text">不限量</span>':sold?'<span class="sold-label">SOLD OUT</span>':`<span class="stock-text ${r<=5?'low':''}">剩餘 ${r}</span>`;
   }else if(p.type==='polaroid') stockLine='<span class="stock-text">點入查看各選項庫存</span>';
   sold=isMainProductSoldOut(p);if(sold&&!stockLine.includes('SOLD OUT'))stockLine='<span class="sold-label">SOLD OUT</span>';
   const shownPrice=p.displayPrice||'$'+money(p.price);
@@ -22903,7 +22927,9 @@ function stockDisplayHtmlV63(product){
   if(product.type==='lottery'){
     const max=Number(getSettings().lotteryMax||0);
     const left=lotteryRemaining(false);
-    return `<div class="v63-stock-summary"><span class="pill ${left<=5&&left>0?'low':''}">剩餘 ${left} / ${max}</span></div>`;
+    return isLotteryUnlimited()
+      ? `<div class="v63-stock-summary"><span class="pill">不限量</span><div class="subtle">已售 ${lotterySold()} 抽</div></div>`
+      : `<div class="v63-stock-summary"><span class="pill ${left<=5&&left>0?'low':''}">剩餘 ${left} / ${max}</span></div>`;
   }
   return '—';
 }
@@ -23211,13 +23237,23 @@ function ensureFinalPrizeUiV64(){
   const cards=section.querySelector('.lottery-setting-cards');if(cards&&!cards.querySelector('.v64-final-card')){const card=document.createElement('div');card.className='setting-action-card lottery-setting-card v64-final-card';card.innerHTML=`<div><div class="library-setting-label">最後賞</div><div id="lotteryFinalPrizeSummaryV64" class="library-setting-value v64-final-summary">未設定</div></div><button class="small-btn" onclick="openLotterySetting()">設定</button>`;cards.appendChild(card)}
   renderFinalPrizeSummaryV64();
 }
-function renderFinalPrizeSummaryV64(){const area=document.getElementById('lotteryFinalPrizeSummaryV64');if(!area)return;const x=getFinalPrizeV64();area.innerHTML=!x.enabled?'<span class="subtle">未啟用</span>':`<span>${esc(x.name||'未命名')}</span><span class="pill">${x.awarded?'已送出':'未送出'}</span>`;}
+function renderFinalPrizeSummaryV64(){const area=document.getElementById('lotteryFinalPrizeSummaryV64');if(!area)return;const x=getFinalPrizeV64();area.innerHTML=!x.enabled?'<span class="subtle">未啟用</span>':`<span>${esc(x.name||'未命名')}</span><span class="pill">${x.awarded?'已送出':isLotteryUnlimited()?'需手動發放':'未送出'}</span>`;}
 const openLotterySettingV64Base=openLotterySetting;
 openLotterySetting=function(){openLotterySettingV64Base();ensureFinalPrizeUiV64();const x=getFinalPrizeV64();const e=document.getElementById('lotteryFinalPrizeEnabledV64'),n=document.getElementById('lotteryFinalPrizeNameV64');if(e)e.checked=x.enabled;if(n)n.value=x.name;};
 saveLotterySetting=function(){
-  const value=Number(document.getElementById('lotteryMaxInput')?.value);if(!Number.isInteger(value)||value<0)return alert('請輸入正確數量');let maxSold=0;for(const s of getSessions())maxSold=Math.max(maxSold,lotterySold(s.id));if(value<maxSold)return alert(`起始抽數不能小於已售出的 ${maxSold} 抽`);
+  const unlimited=Boolean(document.getElementById('lotteryUnlimitedInput')?.checked);
+  const value=Number(document.getElementById('lotteryMaxInput')?.value);
+  if(!unlimited){
+    if(!Number.isInteger(value)||value<0)return alert('請輸入正確數量');
+    let maxSold=0;for(const session of getSessions())maxSold=Math.max(maxSold,lotterySold(session.id));
+    if(value<maxSold)return alert(`總抽數不能小於已售出的 ${maxSold} 抽`);
+  }
   const enabled=Boolean(document.getElementById('lotteryFinalPrizeEnabledV64')?.checked);const name=String(document.getElementById('lotteryFinalPrizeNameV64')?.value||'').trim();if(enabled&&!name)return alert('請輸入最後賞獎品');
-  const old=getFinalPrizeV64();const s=getSettings();s.lotteryMax=value;s.lotteryFinalPrize={enabled,name,awarded:(old.enabled===enabled&&old.name===name)?old.awarded:false};saveSettings(s);closeModal('lotterySettingModal');renderLibrary();renderMainProducts();
+  const old=getFinalPrizeV64();const settings=getSettings();
+  settings.lotteryUnlimited=unlimited;
+  if(!unlimited)settings.lotteryMax=value;
+  settings.lotteryFinalPrize={enabled,name,awarded:(old.enabled===enabled&&old.name===name)?old.awarded:false};
+  saveSettings(settings);closeModal('lotterySettingModal');renderLibrary();renderMainProducts();
 };
 const renderLotteryPrizeLibraryV64Base=renderLotteryPrizeLibrary;
 renderLotteryPrizeLibrary=function(){renderLotteryPrizeLibraryV64Base();const body=document.getElementById('lotteryPrizeBody');if(!body)return;const prizes=getLotteryPrizes();[...body.querySelectorAll('tr')].forEach((tr,i)=>{const p=prizes[i];if(!p||tr.children.length<4)return;const qty=Number(p.remaining||0),warning=Number(p.warning||0);tr.children[2].innerHTML=`<strong>${qty}</strong>${warning>0?`<div class="v64-lottery-warning ${qty>0&&qty<=warning?'low':''}">低庫存預警 ${warning}</div>`:''}`;});};
@@ -23927,7 +23963,7 @@ async function updateCloud(){
 async function queue(){
  closeSettingsNav();
  if(!lineAdminToken){
-  open('排隊叫號',`<div class="v75-queue v76-queue"><span class="v75-kicker">QUEUE MANAGEMENT</span><h3>QR Code 自助排隊</h3><p>客人掃碼後即可領號，LINE 通知自由選擇。需要連接雲端資料庫才能同步手機與收銀台。</p><div class="v76-links"><a class="small-btn v75-link" href="${h(queuePublicUrl())}" target="_blank" rel="noopener">客人排隊頁</a><a class="small-btn v75-link" href="${h(queueQRUrl())}" target="_blank" rel="noopener">列印 QR Code</a></div><p class="v75-footnote">舊版排隊資料仍保留在原瀏覽器，雲端清單從新版部署完成後開始記錄，不會覆蓋收銀資料。</p><div class="v75-head-actions">${btn('設定管理員密碼','lineSettings','data-primary="yes"')}</div></div>`);return;
+  open('排隊叫號',`<div class="v75-queue v76-queue"><span class="v75-kicker">QUEUE MANAGEMENT</span><h3>QR Code 自助排隊</h3><p>客人掃碼後即可領號，LINE 通知自由選擇。需要連接雲端資料庫才能同步手機與收銀台。</p><div class="v76-links"><a class="small-btn v75-link" href="${h(queuePublicUrl())}" target="_blank" rel="noopener">客人排隊頁</a><a class="small-btn v75-link" href="${h(queueQRUrl())}" target="_blank" rel="noopener">列印 QR Code</a></div><p class="v75-footnote">舊版排隊資料仍保留在原瀏覽器，雲端清單從新版部署完成後開始記錄，不會覆蓋收銀資料。</p><div class="v75-head-actions">${btn('設定管理員密碼','lineSettings','data-primary="yes"')}<a class="small-btn v75-link" href="${h(new URL('queue-settings.html',location.href).href)}" target="_blank" rel="noopener">排隊設定 ↗</a></div></div>`);return;
  }
  open('排隊叫號','<div class="v75-queue"><p>正在讀取雲端排隊清單…</p></div>');
  try{await updateCloud();renderCloudQueue();}catch(e){open('排隊叫號',`<div class="v75-queue"><p class="v76-danger">連線失敗：${h(e.message)}</p><p>請確認已部署 v76 Worker、綁定 D1 資料庫，且管理密碼正確。</p><div class="v75-head-actions">${btn('重新連線','queue')}${btn('叫號設定','lineSettings')}</div></div>`);}
@@ -23935,7 +23971,7 @@ async function queue(){
 function renderCloudQueue(){
  const s=qstate(),active=cloudRecords.filter(q=>!['done','cancelled'].includes(q.status)),current=currentTicket();
  open('排隊叫號',`<div class="v75-queue v76-queue">
-  <section class="v75-top"><div><span class="v75-kicker">QR QUEUE • CLOUD</span><h3>排隊叫號</h3><p>PF45 AYAMI × YAKI｜${h(cloudView.day||'今日')}</p></div><div class="v75-head-actions">${btn('＋ 人工領號','queueNew','data-primary="yes"')}${btn('重新整理','queue')}${btn('設定','lineSettings')}</div></section>
+  <section class="v75-top"><div><span class="v75-kicker">QR QUEUE • CLOUD</span><h3>排隊叫號</h3><p>${h(cloudView.event||'MOCH1YAKI')}｜${h(cloudView.day||'今日')}</p></div><div class="v75-head-actions">${btn('＋ 人工領號','queueNew','data-primary="yes"')}${btn('重新整理','queue')}${btn('登入管理','lineSettings')}<a class="small-btn v75-link" target="_blank" rel="noopener" href="${h(new URL('queue-settings.html',location.href).href)}">排隊設定 ↗</a></div></section>
   <div class="v76-links"><a class="small-btn v75-link" href="${h(queuePublicUrl())}" target="_blank" rel="noopener">客人領號頁 ↗</a><a class="small-btn v75-link" href="${h(queueQRUrl())}" target="_blank" rel="noopener">QR Code／列印 ↗</a>${btn(cloudView.paused?'開放領號':'暫停領號','queueToggle','data-primary="yes"')}</div>
   <div class="v75-stats"><div><span>等待中</span><strong>${active.filter(q=>q.status==='waiting').length}</strong></div><div><span>叫號中</span><strong>${active.filter(q=>q.status==='calling').length}</strong></div><div><span>已完成</span><strong>${cloudRecords.filter(q=>q.status==='done').length}</strong></div></div>
   <div class="v75-current"><div><span class="v75-overline">目前叫號</span><strong>${h(current?.number||cloudView.current||'---')}</strong><p>${h(current?.name||'尚未叫號')}</p></div><div class="v75-current-actions">${btn('上一號','queuePrev')}${btn('下一號','queueNext','data-primary="yes"')}</div></div>
