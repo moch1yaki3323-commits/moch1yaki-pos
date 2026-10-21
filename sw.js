@@ -1,4 +1,4 @@
-const CACHE_NAME = "cash-register-v78-unlimited-lottery";
+const CACHE_NAME = "cash-register-v79-line-auto-queue";
 const CORE = ["./", "./index.html"];
 
 self.addEventListener("install", event => {

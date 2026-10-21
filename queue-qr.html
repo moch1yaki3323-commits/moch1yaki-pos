@@ -1,4 +1,38 @@
-<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>PF45｜排隊 QR Code</title>
-<style>body{font-family:-apple-system,BlinkMacSystemFont,'Microsoft JhengHei',sans-serif;background:#f5f4f0;color:#455b4d;display:grid;place-items:center;min-height:100dvh;margin:0}.card{width:min(92vw,430px);text-align:center;border:1px solid #dae4da;border-radius:24px;padding:35px 22px;background:#fff;box-shadow:0 12px 35px #35483a11}.kicker{font-weight:800;letter-spacing:.2em;color:#889d8e;font-size:12px}.title{font-size:30px;font-weight:800;margin:14px 0 5px}.sub{font-size:15px;line-height:1.5;color:#738578;margin:7px 0 20px}.qr{width:282px;height:282px;margin:0 auto;border:1px solid #e3e8e3;display:flex;align-items:center;justify-content:center;padding:12px}.qr img,.qr canvas{max-width:100%}.url{font-size:12px;word-break:break-all;color:#819287;margin-top:20px}button{padding:12px 25px;border-radius:12px;background:#638772;color:#fff;border:0;font-weight:700;cursor:pointer;margin-top:20px}.msg{font-size:13px;color:#a15f53}@media print{body{background:white;min-height:unset}.card{box-shadow:none;width:420px;border:0}button{display:none}}</style></head><body><div class="card"><div class="kicker">PF45 • AYAMI × YAKI</div><div class="title">掃碼領號排隊</div><div class="sub">現場掃描 QR Code → 自助領號<br>LINE 叫號通知自由選擇</div><div id="qr" class="qr"><span>載入 QR Code 中…</span></div><p id="warning" class="msg"></p><div id="url" class="url"></div><button onclick="window.print()">列印 QR Code</button></div>
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>MOCH1YAKI｜排隊 QR Code</title>
+<style>
+*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft JhengHei",sans-serif;background:#f5f4f0;color:#40554a;margin:0;padding:26px 15px}main{max-width:920px;margin:0 auto}.head{text-align:center;margin:15px 0 26px}.kicker{font-weight:800;letter-spacing:.19em;color:#829989;font-size:12px}h1{font-size:30px;margin:12px 0 7px}.subtitle{color:#7d8a81;font-size:14px;margin:0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.card{background:#fff;border:1px solid #dce5df;border-radius:21px;padding:25px 19px;text-align:center;box-shadow:0 12px 35px #35483a0b}.card h2{font-size:21px;margin:6px 0}.card p{min-height:44px;color:#697d70;font-size:13px;line-height:1.7}.qr{width:264px;height:264px;padding:4px;display:flex;align-items:center;justify-content:center;margin:15px auto;border:1px solid #e9eee9;border-radius:12px}.qr img,.qr canvas{max-width:100%}.pill{font-size:12px;border-radius:99px;padding:6px 11px;background:#e9f0e9;color:#557564;display:inline-block;font-weight:750}.pill.alt{background:#f2eeee;color:#8c706c}.url{font-size:12px;word-break:break-all;color:#849389}.note{text-align:center;background:#fff8ed;color:#8b6b47;padding:13px;border-radius:13px;margin:18px 0;font-size:13px;line-height:1.8}a{color:#47735b}.actions{text-align:center;margin:20px 0 10px}button{padding:13px 29px;border-radius:13px;background:#6d8979;color:#fff;border:0;font-weight:700;cursor:pointer}#lineCard[hidden]{display:none}.fallback{color:#a26e5b;font-size:13px;line-height:1.6}
+@media(max-width:680px){.grid{grid-template-columns:1fr}.qr{width:250px;height:250px}.head{margin-top:0}h1{font-size:26px}}
+@media print{body{background:#fff;padding:7mm}.head{margin:0 0 9mm}.card{box-shadow:none;border:1px solid #ccc;break-inside:avoid;padding:15px}.qr{width:55mm;height:55mm}.qr img,.qr canvas{width:52mm!important;height:52mm!important}.grid{grid-template-columns:1fr 1fr;gap:9mm}h1{font-size:23px}.card h2{font-size:18px}.card p{font-size:12px}.note{background:#fff;border:1px solid #aaa;margin:8mm 0}.actions{display:none}}
+</style></head><body><main>
+<div class="head"><div class="kicker">MOCH1YAKI • SELF-SERVICE QUEUE</div><h1 id="event">掃碼排隊領號</h1><p class="subtitle" id="booth">LINE 直接領號，也能用網頁排隊</p></div>
+<div class="grid">
+<section class="card" id="lineCard" hidden><span class="pill">LINE 自動叫號通知</span><h2>LINE 直接領號</h2><p>掃碼加入官方帳號，新好友加入時自動領號。<br>已經是好友？在聊天室傳送「領號」即可。</p><div class="qr" id="lineQR"><span>正在產生 QR Code…</span></div><div class="url" id="lineUrl"></div></section>
+<section class="card"><span class="pill alt">不使用 LINE 也可以</span><h2>網頁自助領號</h2><p>掃碼開啟網頁，輸入暱稱即可領號。<br>可在網頁查看排隊進度，不會收到 LINE 通知。</p><div class="qr" id="webQR"><span>正在產生 QR Code…</span></div><div class="url" id="webUrl"></div></section>
+</div>
+<div class="note" id="note">兩種方式擇一領號，請勿重複登記。排隊開放後才能領號。</div>
+<div class="actions"><button type="button" onclick="window.print()">列印排隊 QR Code</button></div>
+</main>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-<script>const url=new URL('queue.html',location.href).href;document.getElementById('url').textContent=url;const qr=document.getElementById('qr');if(typeof QRCode==='function'&&!url.startsWith('file:')){qr.textContent='';new QRCode(qr,{text:url,width:256,height:256,colorDark:'#25392c',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});}else{qr.textContent='QR Code 尚未產生';document.getElementById('warning').textContent=location.protocol==='file:'?'請先將網站部署至 HTTPS 網址後，再列印 QR Code。':'無法載入 QR Code 元件，請檢查網路連線。';}</script></body></html>
+<script>
+(()=>{'use strict';
+const API='https://moch1yaki-notify.q0812n.workers.dev';
+const $=id=>document.getElementById(id);
+function draw(nodeId,url){
+ const el=$(nodeId);el.textContent='';
+ if(typeof QRCode==='function'&&url.startsWith('https://'))new QRCode(el,{text:url,width:244,height:244,colorDark:'#25392c',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M});
+ else el.textContent='QR Code 載入失敗，請檢查網路或 HTTPS 網址';
+}
+const webUrl=new URL('queue.html',location.href).href;
+$('webUrl').textContent=webUrl;draw('webQR',webUrl);
+fetch(API+'/public/config').then(r=>r.ok?r.json():Promise.reject()).then(c=>{
+ $('event').textContent=c.event||'MOCH1YAKI 排隊領號';$('booth').textContent=(c.booth||'')+'｜掃碼領號';
+ const lineUrl=String(c.officialUrl||'').trim();
+ if(/^https:\/\/[^\s]+$/i.test(lineUrl)){
+   $('lineCard').hidden=false;$('lineUrl').textContent=lineUrl;draw('lineQR',lineUrl);
+ }else{
+   $('note').textContent='尚未設定 LINE 官方帳號加入好友網址。請先在「排隊系統設定」貼上官方加入好友連結；設定前可使用網頁領號。';
+ }
+ if(c.paused)$('note').textContent+=' 目前暫停領號，請等候攤位開放。';
+}).catch(()=>{$('note').textContent='暫時無法取得 LINE 官方帳號連結，請檢查 Worker；網頁 QR Code 仍可開啟。';});
+})();
+</script></body></html>

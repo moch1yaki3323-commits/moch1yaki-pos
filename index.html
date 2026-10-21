@@ -23963,7 +23963,7 @@ async function updateCloud(){
 async function queue(){
  closeSettingsNav();
  if(!lineAdminToken){
-  open('排隊叫號',`<div class="v75-queue v76-queue"><span class="v75-kicker">QUEUE MANAGEMENT</span><h3>QR Code 自助排隊</h3><p>客人掃碼後即可領號，LINE 通知自由選擇。需要連接雲端資料庫才能同步手機與收銀台。</p><div class="v76-links"><a class="small-btn v75-link" href="${h(queuePublicUrl())}" target="_blank" rel="noopener">客人排隊頁</a><a class="small-btn v75-link" href="${h(queueQRUrl())}" target="_blank" rel="noopener">列印 QR Code</a></div><p class="v75-footnote">舊版排隊資料仍保留在原瀏覽器，雲端清單從新版部署完成後開始記錄，不會覆蓋收銀資料。</p><div class="v75-head-actions">${btn('設定管理員密碼','lineSettings','data-primary="yes"')}<a class="small-btn v75-link" href="${h(new URL('queue-settings.html',location.href).href)}" target="_blank" rel="noopener">排隊設定 ↗</a></div></div>`);return;
+  open('排隊叫號',`<div class="v75-queue v76-queue"><span class="v75-kicker">QUEUE MANAGEMENT</span><h3>QR Code 自助排隊</h3><p>客人可掃 LINE QR Code 直接領號並收到通知；不使用 LINE 的客人，也可透過網頁自助領號。</p><div class="v76-links"><a class="small-btn v75-link" href="${h(queuePublicUrl())}" target="_blank" rel="noopener">客人排隊頁</a><a class="small-btn v75-link" href="${h(queueQRUrl())}" target="_blank" rel="noopener">列印 QR Code</a></div><p class="v75-footnote">舊版排隊資料仍保留在原瀏覽器，雲端清單從新版部署完成後開始記錄，不會覆蓋收銀資料。</p><div class="v75-head-actions">${btn('設定管理員密碼','lineSettings','data-primary="yes"')}<a class="small-btn v75-link" href="${h(new URL('queue-settings.html',location.href).href)}" target="_blank" rel="noopener">排隊設定 ↗</a></div></div>`);return;
  }
  open('排隊叫號','<div class="v75-queue"><p>正在讀取雲端排隊清單…</p></div>');
  try{await updateCloud();renderCloudQueue();}catch(e){open('排隊叫號',`<div class="v75-queue"><p class="v76-danger">連線失敗：${h(e.message)}</p><p>請確認已部署 v76 Worker、綁定 D1 資料庫，且管理密碼正確。</p><div class="v75-head-actions">${btn('重新連線','queue')}${btn('叫號設定','lineSettings')}</div></div>`);}
@@ -23977,7 +23977,7 @@ function renderCloudQueue(){
   <div class="v75-current"><div><span class="v75-overline">目前叫號</span><strong>${h(current?.number||cloudView.current||'---')}</strong><p>${h(current?.name||'尚未叫號')}</p></div><div class="v75-current-actions">${btn('上一號','queuePrev')}${btn('下一號','queueNext','data-primary="yes"')}</div></div>
   <div class="v75-toolbar"><h3>今日叫號清單 <span>${cloudRecords.length} 筆</span></h3><div>${check('v70QueueEnabled','顯示頂部叫號',s.enabled)}</div></div>
   <div class="v75-list">${cloudRecords.map(q=>`<article class="v75-item ${h(q.status)}"><div class="v75-ticket"><b>${h(q.number)}</b></div><div class="v75-item-info"><div class="v75-name"><strong>${h(q.name)}</strong><span class="v75-status ${h(q.status)}">${queueTag(q)}</span></div><p>${h(q.notification||(q.lineBound?'LINE 已綁定':q.wantsLine?'LINE 選填／待綁定':'未選擇 LINE 通知'))}</p></div><div class="v75-item-actions">${!['done','cancelled'].includes(q.status)?btn('叫號','queueCall:'+q.id,'data-primary="yes"')+btn('LINE','queueNotify:'+q.id)+btn('完成','queueDone:'+q.id)+btn('取消','queueCancel:'+q.id):''}${q.status!=='cancelled'?btn('修改','queueEdit:'+q.id):''}</div></article>`).join('')||'<div class="v75-empty">目前沒有號碼。將 QR Code 印在攤位即可讓顧客掃碼領號。</div>'}</div>
-  <p class="v75-footnote">新號碼保存在 Cloudflare 資料庫，手機與收銀台同步。每個台灣日期獨立編號；未綁定 LINE 的顧客仍可排隊。</p>
+  <p class="v75-footnote">LINE 新好友會自動領號；既有好友傳送「領號」即可，不必手動綁定。沒有 LINE 的顧客依然可在網頁領號。</p>
  </div>`);
  $('v70QueueEnabled').onchange=()=>{s.enabled=$('v70QueueEnabled').checked;save();headerQueue();};
 }
@@ -24001,21 +24001,37 @@ async function callQueue(id){
  const result=await adminRequest('/admin/call',{id});await updateCloud();renderCloudQueue();
  if(result.notified===false&&result.message==='LINE 發送失敗，請現場叫號')alert('LINE 發送失敗，請現場叫號。');
 }
+function queueStepTarget(delta){
+ const active=cloudRecords.filter(q=>!['done','cancelled'].includes(q.status))
+   .sort((a,b)=>Number(a.number)-Number(b.number));
+ const current=currentTicket();
+ const latest=cloudRecords.filter(q=>q.calledAt)
+   .sort((a,b)=>String(b.calledAt).localeCompare(String(a.calledAt)))[0];
+ const anchor=current?Number(current.number):(latest?Number(latest.number):null);
+ const next=delta>0
+   ?active.find(q=>anchor===null||Number(q.number)>anchor)
+   :active.filter(q=>anchor!==null&&Number(q.number)<anchor).at(-1);
+ return {next,active,anchor};
+}
 async function stepQueue(delta){
- if(!lineAdminToken)return queue();
+ if(!lineAdminToken){await queue();return;}
  await updateCloud();
- const active=cloudRecords.filter(q=>!['done','cancelled'].includes(q.status));
- const current=currentTicket(),idx=active.findIndex(q=>q.id===current?.id);
- const next=active[delta>0?(idx<0?0:idx+1):idx-1];if(next)await callQueue(next.id);
+ const {next,active}=queueStepTarget(delta);
+ if(!next){
+   if(!active.length)alert('目前還沒有可以叫號的客人。\n請先讓客人掃 QR Code 領號，或使用「人工領號」。');
+   else alert(delta>0?'已經是最後一個可叫號的號碼。':'目前沒有更前面的有效號碼。');
+   renderCloudQueue();
+   return;
+ }
+ await callQueue(next.id);
 }
 function headerQueue(){
  const s=qstate(),node=$('v70QueueHeader');if(!node)return;
  node.classList.toggle('hidden',!s.enabled);
- const cur=currentTicket(),active=cloudRecords.filter(q=>!['done','cancelled'].includes(q.status));
- const idx=active.findIndex(q=>q.id===cur?.id);
- $('v70QueueNumber').textContent=cur?.number||'---';
- $('v70QueuePrevious').disabled=idx<=0;
- $('v70QueueNext').disabled=!lineAdminToken||idx>=active.length-1;
+ const cur=currentTicket();
+ $('v70QueueNumber').textContent=cur?.number||cloudView.current||'---';
+ $('v70QueuePrevious').disabled=!lineAdminToken||!queueStepTarget(-1).next;
+ $('v70QueueNext').disabled=!lineAdminToken||!queueStepTarget(1).next;
  node.title=cur?cur.name:'尚未叫號';
  const brand=document.querySelector('header .brand-block'),copy=brand?.querySelector('.brand-copy'),auction=$('auctionBanner');
  if(brand&&copy){copy.after(node);if(auction&&auction.parentElement===brand)node.after(auction);}
